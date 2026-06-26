@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, Bu
 const fs = require('fs');
 const express = require('express');
 const axios = require('axios');
+const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -25,6 +26,24 @@ if (!token) {
     process.exit(1);
 }
 
+// Statik dosyaları serve et
+app.use(express.static(__dirname));
+
+// Ana sayfa
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Başarılı sayfası
+app.get('/success', (req, res) => {
+    res.sendFile(path.join(__dirname, 'success.html'));
+});
+
+// Başarısız sayfası
+app.get('/fail', (req, res) => {
+    res.sendFile(path.join(__dirname, 'fail.html'));
+});
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -39,33 +58,13 @@ const client = new Client({
 let pendingVerifications = new Map();
 
 // ============ EXPRESS SUNUCUSU ============
-app.get('/', (req, res) => {
-    res.send(`
-        <html>
-            <head><title>AURA Doğrulama Sistemi</title></head>
-            <body style="font-family: Arial; text-align: center; padding: 50px; background: #0a0a0a; color: white;">
-                <h1 style="color: #00ff88;">🌟 AURA</h1>
-                <p>Doğrulama sistemi çalışıyor! ✅</p>
-                <p style="color: #8888aa;">AURA SCRIPT HUB v3.0</p>
-            </body>
-        </html>
-    `);
-});
 
+// OAuth2 callback
 app.get('/callback', async (req, res) => {
     const { code, state } = req.query;
 
     if (!code) {
-        return res.send(`
-            <html>
-                <head><title>Hata</title></head>
-                <body style="font-family: Arial; text-align: center; padding: 50px; background: #0a0a0a; color: white;">
-                    <h1 style="color: #ff4444;">❌ Hata</h1>
-                    <p>Doğrulama kodu bulunamadı!</p>
-                    <button onclick="window.close()" style="padding: 10px 30px; background: #5865F2; color: white; border: none; border-radius: 8px; cursor: pointer;">Kapat</button>
-                </body>
-            </html>
-        `);
+        return res.sendFile(path.join(__dirname, 'fail.html'));
     }
 
     try {
@@ -92,15 +91,7 @@ app.get('/callback', async (req, res) => {
 
         const stateData = pendingVerifications.get(state);
         if (!stateData) {
-            return res.send(`
-                <html>
-                    <head><title>Hata</title></head>
-                    <body style="font-family: Arial; text-align: center; padding: 50px; background: #0a0a0a; color: white;">
-                        <h1 style="color: #ff4444;">❌ Geçersiz Oturum</h1>
-                        <button onclick="window.close()" style="padding: 10px 30px; background: #5865F2; color: white; border: none; border-radius: 8px; cursor: pointer;">Kapat</button>
-                    </body>
-                </html>
-            `);
+            return res.redirect('/fail.html?error=Geçersiz oturum! Lütfen tekrar deneyin.');
         }
 
         const { guildId: stateGuildId, discordUserId } = stateData;
@@ -110,15 +101,7 @@ app.get('/callback', async (req, res) => {
         const verifyRole = guild.roles.cache.get(verifyRoleId);
 
         if (!verifyRole) {
-            return res.send(`
-                <html>
-                    <head><title>Hata</title></head>
-                    <body style="font-family: Arial; text-align: center; padding: 50px; background: #0a0a0a; color: white;">
-                        <h1 style="color: #ff4444;">❌ Rol Bulunamadı</h1>
-                        <button onclick="window.close()" style="padding: 10px 30px; background: #5865F2; color: white; border: none; border-radius: 8px; cursor: pointer;">Kapat</button>
-                    </body>
-                </html>
-            `);
+            return res.redirect('/fail.html?error=Doğrulama rolü bulunamadı!');
         }
 
         if (removeRoleId && removeRoleId !== "") {
@@ -133,31 +116,13 @@ app.get('/callback', async (req, res) => {
 
         console.log(`✅ ${member.user.tag} doğrulandı!`);
 
-        res.send(`
-            <html>
-                <head><title>✅ Doğrulama Başarılı</title></head>
-                <body style="font-family: Arial; text-align: center; padding: 50px; background: #0a0a0a; color: white;">
-                    <h1 style="color: #00ff88;">✅ Doğrulama Başarılı!</h1>
-                    <p style="font-size: 24px;">${user.username}#${user.discriminator}</p>
-                    <p style="color: #8888aa;">Artık Discord'a dönebilirsin.</p>
-                    <button onclick="window.close()" style="padding: 10px 30px; background: #00ff88; color: #0a0a0a; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Kapat</button>
-                    <script>setTimeout(() => window.close(), 5000);</script>
-                </body>
-            </html>
-        `);
+        // Başarılı sayfasına yönlendir
+        const username = `${user.username}#${user.discriminator}`;
+        res.redirect(`/success.html?username=${encodeURIComponent(username)}`);
 
     } catch (error) {
         console.error('OAuth2 hatası:', error);
-        res.send(`
-            <html>
-                <head><title>Hata</title></head>
-                <body style="font-family: Arial; text-align: center; padding: 50px; background: #0a0a0a; color: white;">
-                    <h1 style="color: #ff4444;">❌ Hata</h1>
-                    <p>${error.message}</p>
-                    <button onclick="window.close()" style="padding: 10px 30px; background: #5865F2; color: white; border: none; border-radius: 8px; cursor: pointer;">Kapat</button>
-                </body>
-            </html>
-        `);
+        res.redirect(`/fail.html?error=${encodeURIComponent(error.message)}`);
     }
 });
 
@@ -199,9 +164,9 @@ async function createVerifyPanel(context) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('verify_button')
-                .setLabel('🔑 Hesabını Yetkilendir')
+                .setLabel('Hesabını Yetkilendir')
                 .setStyle(ButtonStyle.Success)
-                .setEmoji('🔑')
+                .setEmoji(emoji.simsek || '⚡')
         );
 
     if (context.reply) {
