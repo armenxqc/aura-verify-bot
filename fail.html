@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>❌ Başarısız | AURA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .bg-gradient {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(ellipse at 50% 50%, rgba(255, 0, 0, 0.08) 0%, transparent 60%), #0a0a0a;
+            z-index: 0;
+        }
+        .container {
+            position: relative;
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(40px);
+            border-radius: 40px;
+            padding: 50px 45px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid rgba(255, 0, 0, 0.12);
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.8);
+            animation: shakeIn 0.6s ease;
+        }
+        @keyframes shakeIn {
+            0% { opacity: 0; transform: translateX(-20px) scale(0.95); }
+            20% { transform: translateX(10px); }
+            40% { transform: translateX(-10px); }
+            60% { transform: translateX(5px); }
+            80% { transform: translateX(-3px); }
+            100% { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 36px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 6px;
+            margin-bottom: 5px;
+        }
+        .logo-sub {
+            color: #445566;
+            font-size: 11px;
+            letter-spacing: 10px;
+            text-transform: uppercase;
+            margin-bottom: 25px;
+        }
+        .fail-icon {
+            width: 90px; height: 90px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, rgba(255, 0, 0, 0.1), rgba(204, 0, 0, 0.05));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 45px;
+            border: 2px solid rgba(255, 0, 0, 0.15);
+            animation: pulseRed 2s ease-in-out infinite;
+        }
+        @keyframes pulseRed {
+            0%, 100% { box-shadow: 0 0 40px rgba(255, 0, 0, 0.05); }
+            50% { box-shadow: 0 0 80px rgba(255, 0, 0, 0.15); }
+        }
+        .title {
+            color: #ffffff;
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: #8899aa;
+            font-size: 15px;
+            margin: 5px 0 20px;
+        }
+        .error-box {
+            background: rgba(255, 0, 0, 0.05);
+            border: 1px solid rgba(255, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: left;
+        }
+        .error-box .e-title { color: #ff4444; font-weight: 600; }
+        .error-box .e-desc { color: #778899; font-size: 14px; margin-top: 3px; }
+        .error-list {
+            text-align: left;
+            margin: 15px 0;
+            list-style: none;
+            padding: 0;
+        }
+        .error-list li {
+            color: #778899;
+            padding: 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .error-list li:last-child { border-bottom: none; }
+        .error-list .bullet { color: #ff4444; font-weight: bold; }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .btn-retry {
+            background: linear-gradient(135deg, #5865F2, #4752C4);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .btn-retry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(88, 101, 242, 0.3);
+        }
+        .btn-close2 {
+            background: rgba(255,255,255,0.05);
+            color: #8899aa;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .btn-close2:hover {
+            background: rgba(255,255,255,0.1);
+            color: #ffffff;
+        }
+        .info-text {
+            color: #556677;
+            font-size: 12px;
+            margin-top: 12px;
+        }
+        .footer {
+            margin-top: 20px;
+            color: #334455;
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        .footer .highlight { color: #ff4444; }
+        @media (max-width: 500px) {
+            .container { padding: 35px 20px; margin: 15px; }
+            .logo { font-size: 28px; }
+            .title { font-size: 22px; }
+            .btn-group { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-gradient"></div>
+
+    <div class="container">
+        <div class="logo">AURA</div>
+        <div class="logo-sub">SCRIPT HUB</div>
+
+        <div class="fail-icon">❌</div>
+
+        <h1 class="title">Doğrulama Başarısız</h1>
+        <p class="subtitle">Doğrulama işlemi sırasında bir sorun oluştu</p>
+
+        <div class="error-box">
+            <div class="e-title">⚠️ Hata Detayı</div>
+            <div class="e-desc" id="errorMessage">Bot yetkilendirilmedi veya geçersiz oturum.</div>
+        </div>
+
+        <ul class="error-list">
+            <li><span class="bullet">•</span> Discord hesabınızla botu yetkilendirdiğinizden emin olun</li>
+            <li><span class="bullet">•</span> Yetkilendirme sayfasında tüm izinleri kabul edin</li>
+            <li><span class="bullet">•</span> İnternet bağlantınızı kontrol edin</li>
+            <li><span class="bullet">•</span> Tekrar deneyin veya yöneticiyle iletişime geçin</li>
+        </ul>
+
+        <div class="btn-group">
+            <button class="btn-retry" onclick="goBack()">🔄 Tekrar Dene</button>
+            <button class="btn-close2" onclick="closeWindow()">✕ Kapat</button>
+        </div>
+
+        <div class="info-text">💡 Sorun devam ediyorsa sunucu yöneticisiyle iletişime geçin</div>
+
+        <div class="footer">
+            <span class="highlight">★</span> AURA SCRIPT HUB v3.0 <span class="highlight">★</span>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorMsg = urlParams.get('error') || 'Bot yetkilendirilmedi veya geçersiz oturum.';
+        document.getElementById('errorMessage').textContent = errorMsg;
+
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        function closeWindow() {
+            window.close();
+        }
+    </script>
+</body>
+</html>
