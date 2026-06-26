@@ -28,9 +28,10 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.DirectMessages
     ],
-    partials: [Partials.Channel]
+    partials: [Partials.Channel, Partials.Message]
 });
 
 let pendingVerifications = new Map();
