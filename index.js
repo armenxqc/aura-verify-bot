@@ -6,8 +6,9 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Config dosyasını oku (sadece redirectUri için)
+// Config, emoji ve panel dosyalarını oku
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+const emoji = JSON.parse(fs.readFileSync('./emoji.json', 'utf8')); // ← EMOJI TANIMLANDI
 const panelData = JSON.parse(fs.readFileSync('./panel.json', 'utf8'));
 const verifyMessageData = JSON.parse(fs.readFileSync('./verify-message.json', 'utf8'));
 
@@ -156,101 +157,110 @@ async function registerCommands() {
 
 // ============ PANEL OLUŞTURMA FONKSİYONU (panel.json'dan) ============
 async function createVerifyPanel(context) {
-    // panel.json'dan embed'i al
-    const panelEmbed = new EmbedBuilder(panelData.embeds[0]);
+    try {
+        // panel.json'dan embed'i al
+        const panelEmbed = new EmbedBuilder(panelData.embeds[0]);
 
-    // Buton oluştur
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('verify_button')
-                .setLabel('Hesabını Yetkilendir')
-                .setStyle(ButtonStyle.Success)
-                .setEmoji(emoji.simsek || '⚡')
-        );
+        // Buton oluştur - EMOJI KULLANIMI
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('verify_button')
+                    .setLabel('Hesabını Yetkilendir')
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji(emoji.simsek || '⚡') // ← EMOJI KULLANIMI
+            );
 
-    if (context.reply) {
-        // Slash komut ise
-        await context.reply({
-            embeds: [panelEmbed],
-            components: [row]
-        });
-    } else {
-        // Mesaj komutu ise
-        await context.channel.send({
-            embeds: [panelEmbed],
-            components: [row]
-        });
-        await context.reply({
-            content: '✅ Doğrulama paneli başarıyla oluşturuldu!',
-            allowedMentions: { repliedUser: false }
-        });
+        if (context.reply) {
+            // Slash komut ise
+            await context.reply({
+                embeds: [panelEmbed],
+                components: [row]
+            });
+        } else {
+            // Mesaj komutu ise
+            await context.channel.send({
+                embeds: [panelEmbed],
+                components: [row]
+            });
+            await context.reply({
+                content: `${emoji.ok} Doğrulama paneli başarıyla oluşturuldu!`,
+                allowedMentions: { repliedUser: false }
+            });
+        }
+    } catch (error) {
+        console.error('Panel oluşturma hatası:', error);
+        throw error;
     }
 }
 
 // ============ SLASH KOMUT (/panelkur) ============
 client.on(Events.InteractionCreate, async interaction => {
-    if (interaction.isChatInputCommand() && interaction.commandName === 'panelkur') {
-        if (interaction.user.id !== ownerId) {
-            return interaction.reply({
-                content: '❌ Bu komutu sadece sunucu sahibi kullanabilir!',
-                ephemeral: true
-            });
+    try {
+        if (interaction.isChatInputCommand() && interaction.commandName === 'panelkur') {
+            if (interaction.user.id !== ownerId) {
+                return interaction.reply({
+                    content: `${emoji.dikkat} Bu komutu sadece sunucu sahibi kullanabilir!`,
+                    ephemeral: true
+                });
+            }
+
+            try {
+                await createVerifyPanel(interaction);
+            } catch (error) {
+                console.error('Panel oluşturma hatası:', error);
+                await interaction.reply({
+                    content: `${emoji.dikkat} Panel oluşturulurken bir hata oluştu.`,
+                    ephemeral: true
+                });
+            }
         }
 
-        try {
-            await createVerifyPanel(interaction);
-        } catch (error) {
-            console.error('Panel oluşturma hatası:', error);
+        // ============ BUTON ============
+        if (interaction.isButton() && interaction.customId === 'verify_button') {
+            const member = interaction.member;
+            const verifyRole = interaction.guild.roles.cache.get(verifyRoleId);
+
+            if (!verifyRole) {
+                return interaction.reply({
+                    content: `${emoji.dikkat} Doğrulama rolü bulunamadı!`,
+                    ephemeral: true
+                });
+            }
+
+            if (member.roles.cache.has(verifyRoleId)) {
+                return interaction.reply({
+                    content: `${emoji.ok} Zaten doğrulanmışsınız!`,
+                    ephemeral: true
+                });
+            }
+
+            const state = Math.random().toString(36).substring(7);
+            pendingVerifications.set(state, {
+                guildId: interaction.guildId,
+                discordUserId: interaction.user.id
+            });
+
+            const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(config.redirectUri)}&scope=identify%20guilds&state=${state}`;
+
+            // verify-message.json'dan embed'i al ve linki güncelle
+            let verifyMessage = JSON.parse(JSON.stringify(verifyMessageData));
+            if (verifyMessage.embeds && verifyMessage.embeds[0]) {
+                verifyMessage.embeds[0].description = verifyMessage.embeds[0].description.replace(
+                    /https:\/\/discord\.com\/oauth2\/authorize\?client_id=\.\.\.&response_type=code&redirect_uri=\.\.\.&scope=identify%20guilds&state=\.\.\./g,
+                    authUrl
+                );
+            }
+
+            const embed = new EmbedBuilder(verifyMessage.embeds[0]);
+
             await interaction.reply({
-                content: '❌ Panel oluşturulurken bir hata oluştu.',
+                embeds: [embed],
                 ephemeral: true
             });
         }
-    }
-
-    // ============ BUTON ============
-    if (interaction.isButton() && interaction.customId === 'verify_button') {
-        const member = interaction.member;
-        const verifyRole = interaction.guild.roles.cache.get(verifyRoleId);
-
-        if (!verifyRole) {
-            return interaction.reply({
-                content: '❌ Doğrulama rolü bulunamadı!',
-                ephemeral: true
-            });
-        }
-
-        if (member.roles.cache.has(verifyRoleId)) {
-            return interaction.reply({
-                content: '✅ Zaten doğrulanmışsınız!',
-                ephemeral: true
-            });
-        }
-
-        const state = Math.random().toString(36).substring(7);
-        pendingVerifications.set(state, {
-            guildId: interaction.guildId,
-            discordUserId: interaction.user.id
-        });
-
-        const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(config.redirectUri)}&scope=identify%20guilds&state=${state}`;
-
-        // verify-message.json'dan embed'i al ve linki güncelle
-        let verifyMessage = JSON.parse(JSON.stringify(verifyMessageData));
-        if (verifyMessage.embeds && verifyMessage.embeds[0]) {
-            verifyMessage.embeds[0].description = verifyMessage.embeds[0].description.replace(
-                /https:\/\/discord\.com\/oauth2\/authorize\?client_id=\.\.\.&response_type=code&redirect_uri=\.\.\.&scope=identify%20guilds&state=\.\.\./g,
-                authUrl
-            );
-        }
-
-        const embed = new EmbedBuilder(verifyMessage.embeds[0]);
-
-        await interaction.reply({
-            embeds: [embed],
-            ephemeral: true
-        });
+    } catch (error) {
+        console.error('Interaction hatası:', error);
     }
 });
 
@@ -266,7 +276,7 @@ client.on(Events.MessageCreate, async message => {
     // Owner kontrolü
     if (message.author.id !== ownerId) {
         return message.reply({
-            content: '❌ Bu komutu sadece sunucu sahibi kullanabilir!',
+            content: `${emoji.dikkat} Bu komutu sadece sunucu sahibi kullanabilir!`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -275,7 +285,7 @@ client.on(Events.MessageCreate, async message => {
         await createVerifyPanel(message);
     } catch (error) {
         console.error('Panel oluşturma hatası:', error);
-        await message.reply('❌ Panel oluşturulurken bir hata oluştu.');
+        await message.reply(`${emoji.dikkat} Panel oluşturulurken bir hata oluştu.`);
     }
 });
 
@@ -292,30 +302,30 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     if (hadRole && !hasRole) {
         try {
             await newMember.roles.add(verifyRole);
-            console.log(`🔄 ${newMember.user.tag} kullanıcısından rol kaldırıldı, tekrar verildi.`);
+            console.log(`${emoji.simsek} ${newMember.user.tag} kullanıcısından rol kaldırıldı, tekrar verildi.`);
         } catch (error) {
-            console.error('❌ Rol tekrar verme hatası:', error);
+            console.error(`${emoji.dikkat} Rol tekrar verme hatası:`, error);
         }
     }
 });
 
 // ============ BOT HAZIR ============
 client.on(Events.ClientReady, async () => {
-    console.log(`✅ Bot olarak giriş yapıldı: ${client.user.tag}`);
-    console.log(`👤 Sunucu Sahibi ID: ${ownerId}`);
-    console.log(`🎯 Verify Rolü ID: ${verifyRoleId}`);
+    console.log(`${emoji.kalp} Bot olarak giriş yapıldı: ${client.user.tag}`);
+    console.log(`${emoji.users} Sunucu Sahibi ID: ${ownerId}`);
+    console.log(`${emoji.yıldız} Verify Rolü ID: ${verifyRoleId}`);
     if (removeRoleId && removeRoleId !== "") {
-        console.log(`🔧 Alınacak Rol ID: ${removeRoleId}`);
+        console.log(`${emoji.simsek} Alınacak Rol ID: ${removeRoleId}`);
     }
-    console.log(`🌐 Redirect URI: ${config.redirectUri}`);
+    console.log(`${emoji.ok} Redirect URI: ${config.redirectUri}`);
     await registerCommands();
 });
 
 // ============ BOTU BAŞLAT ============
 client.login(token).catch(error => {
-    console.error('❌ Bot giriş hatası:', error);
+    console.error(`${emoji.dikkat} Bot giriş hatası:`, error);
 });
 
 process.on('unhandledRejection', error => {
-    console.error('❌ Yakalanmamış hata:', error);
+    console.error(`${emoji.dikkat} Yakalanmamış hata:`, error);
 });
