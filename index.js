@@ -7,6 +7,8 @@ const port = process.env.PORT || 3000;
 
 // Config dosyasını oku (sadece redirectUri için)
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+const panelData = JSON.parse(fs.readFileSync('./panel.json', 'utf8'));
+const verifyMessageData = JSON.parse(fs.readFileSync('./verify-message.json', 'utf8'));
 
 // Çevre değişkenlerinden gizli bilgileri al
 const token = process.env.BOT_TOKEN;
@@ -167,7 +169,10 @@ app.listen(port, '0.0.0.0', () => {
 
 async function registerCommands() {
     const commands = [
-        { name: 'panelkur', description: 'Doğrulama panelini kurar (Sadece Sunucu Sahibi)' }
+        { 
+            name: 'panelkur', 
+            description: 'Doğrulama panelini kurar (Sadece Sunucu Sahibi)' 
+        }
     ];
 
     const rest = new REST({ version: '10' }).setToken(token);
@@ -184,6 +189,41 @@ async function registerCommands() {
     }
 }
 
+// ============ PANEL OLUŞTURMA FONKSİYONU (panel.json'dan) ============
+async function createVerifyPanel(context) {
+    // panel.json'dan embed'i al
+    const panelEmbed = new EmbedBuilder(panelData.embeds[0]);
+
+    // Buton oluştur
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('verify_button')
+                .setLabel('🔑 Hesabını Yetkilendir')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('🔑')
+        );
+
+    if (context.reply) {
+        // Slash komut ise
+        await context.reply({
+            embeds: [panelEmbed],
+            components: [row]
+        });
+    } else {
+        // Mesaj komutu ise
+        await context.channel.send({
+            embeds: [panelEmbed],
+            components: [row]
+        });
+        await context.reply({
+            content: '✅ Doğrulama paneli başarıyla oluşturuldu!',
+            allowedMentions: { repliedUser: false }
+        });
+    }
+}
+
+// ============ SLASH KOMUT (/panelkur) ============
 client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'panelkur') {
         if (interaction.user.id !== ownerId) {
@@ -193,32 +233,18 @@ client.on(Events.InteractionCreate, async interaction => {
             });
         }
 
-        const embed = new EmbedBuilder()
-            .setColor('#00ff88')
-            .setTitle('🌟 AURA | Sunucu Doğrulama')
-            .setDescription('Sunucuya tam erişim için Discord hesabınızı yetkilendirmeniz gerekmektedir.')
-            .addFields(
-                { name: '❓ Nasıl Doğrulanır?', value: 'Aşağıdaki **Yetkilendir** butonuna tıklayın.', inline: false },
-                { name: '⚠️ Uyarı', value: 'Yetkilendirme tamamlandıktan sonra otomatik olarak doğrulanacaksınız.', inline: false }
-            )
-            .setTimestamp()
-            .setFooter({ text: 'Aura • Güvenli Giriş Sistemi' });
-
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('verify_button')
-                    .setLabel('🔑 Hesabını Yetkilendir')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('🔑')
-            );
-
-        await interaction.reply({
-            embeds: [embed],
-            components: [row]
-        });
+        try {
+            await createVerifyPanel(interaction);
+        } catch (error) {
+            console.error('Panel oluşturma hatası:', error);
+            await interaction.reply({
+                content: '❌ Panel oluşturulurken bir hata oluştu.',
+                ephemeral: true
+            });
+        }
     }
 
+    // ============ BUTON ============
     if (interaction.isButton() && interaction.customId === 'verify_button') {
         const member = interaction.member;
         const verifyRole = interaction.guild.roles.cache.get(verifyRoleId);
@@ -245,20 +271,82 @@ client.on(Events.InteractionCreate, async interaction => {
 
         const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(config.redirectUri)}&scope=identify%20guilds&state=${state}`;
 
+        // verify-message.json'dan embed'i al ve linki güncelle
+        let verifyMessage = JSON.parse(JSON.stringify(verifyMessageData));
+        if (verifyMessage.embeds && verifyMessage.embeds[0]) {
+            verifyMessage.embeds[0].description = verifyMessage.embeds[0].description.replace(
+                /https:\/\/discord\.com\/oauth2\/authorize\?client_id=\.\.\.&response_type=code&redirect_uri=\.\.\.&scope=identify%20guilds&state=\.\.\./g,
+                authUrl
+            );
+        }
+
+        const embed = new EmbedBuilder(verifyMessage.embeds[0]);
+
         await interaction.reply({
-            content: `🔐 **Doğrulama linkiniz:**\n${authUrl}\n\n⚠️ Linke tıklayıp Discord'da yetkilendirin.`,
+            embeds: [embed],
             ephemeral: true
         });
     }
 });
 
+// ============ MESAJ KOMUTU (.panelkur) ============
+client.on(Events.MessageCreate, async message => {
+    // Bot mesajlarını ve DM'leri filtrele
+    if (message.author.bot) return;
+    if (message.channel.type === 1) return; // DM ise geç
+    
+    // Sadece .panelkur komutunu kontrol et
+    if (message.content.toLowerCase() !== '.panelkur') return;
+    
+    // Owner kontrolü
+    if (message.author.id !== ownerId) {
+        return message.reply({
+            content: '❌ Bu komutu sadece sunucu sahibi kullanabilir!',
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    try {
+        await createVerifyPanel(message);
+    } catch (error) {
+        console.error('Panel oluşturma hatası:', error);
+        await message.reply('❌ Panel oluşturulurken bir hata oluştu.');
+    }
+});
+
+// ============ ROL KONTROLÜ ============
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    if (newMember.user.bot) return;
+
+    const verifyRole = newMember.guild.roles.cache.get(verifyRoleId);
+    if (!verifyRole) return;
+
+    const hadRole = oldMember.roles.cache.has(verifyRoleId);
+    const hasRole = newMember.roles.cache.has(verifyRoleId);
+
+    if (hadRole && !hasRole) {
+        try {
+            await newMember.roles.add(verifyRole);
+            console.log(`🔄 ${newMember.user.tag} kullanıcısından rol kaldırıldı, tekrar verildi.`);
+        } catch (error) {
+            console.error('❌ Rol tekrar verme hatası:', error);
+        }
+    }
+});
+
+// ============ BOT HAZIR ============
 client.on(Events.ClientReady, async () => {
     console.log(`✅ Bot olarak giriş yapıldı: ${client.user.tag}`);
     console.log(`👤 Sunucu Sahibi ID: ${ownerId}`);
     console.log(`🎯 Verify Rolü ID: ${verifyRoleId}`);
+    if (removeRoleId && removeRoleId !== "") {
+        console.log(`🔧 Alınacak Rol ID: ${removeRoleId}`);
+    }
+    console.log(`🌐 Redirect URI: ${config.redirectUri}`);
     await registerCommands();
 });
 
+// ============ BOTU BAŞLAT ============
 client.login(token).catch(error => {
     console.error('❌ Bot giriş hatası:', error);
 });
